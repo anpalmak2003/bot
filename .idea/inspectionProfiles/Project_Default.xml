@@ -1,0 +1,32 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="4">
+            <item index="0" class="java.lang.String" itemvalue="pandas" />
+            <item index="1" class="java.lang.String" itemvalue="matplotlib" />
+            <item index="2" class="java.lang.String" itemvalue="numpy" />
+            <item index="3" class="java.lang.String" itemvalue="Pillow" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="main.TableDir" />
+          <option value="functools.lru_cache" />
+          <option value="__builtin__.input.split" />
+          <option value="int.__setitem__" />
+          <option value="functools.lru_cashe" />
+          <option value="list.*" />
+          <option value="src.task2.*" />
+          <option value="float.len" />
+          <option value="main.cur_state" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
