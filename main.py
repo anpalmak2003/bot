@@ -1,3 +1,5 @@
+import urllib
+
 import telebot
 from telebot import types  # для указание типов
 import config
@@ -110,7 +112,11 @@ def message_reply(message):
         photo_name=message.text
         img=photo_generation.generate_photo(photo_name)
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-        bot.send_photo(message.chat.id, img, reply_markup=markup)
+     #   f = open('out.jpg', 'wb')
+    #    f.write(urllib.request.urlopen(url).read())
+    #f.close()
+        bot.send_photo(message.chat.id, urllib.request.urlopen(img).read(), reply_markup=markup)
+        #os.remove(img)
         cur_state == 'communication'
 
 

@@ -1,18 +1,9 @@
-from kandinsky2 import get_kandinsky2
-import requests
 import os
+import requests
+import urllib.request
+import replicate
 
-'''def save_image(file_info, image_name=None):
-
-    if image_name:
-        image_path = os.path.join('input', 'photos', image_name + '.jpg')
-    else:
-        image_path = os.path.join('input', file_info.file_path)
-
-    with open(image_path, 'wb') as new_file:
-        new_file.write(downloaded_file)
-
-    return image_path'''
+os.environ['REPLICATE_API_TOKEN'] = 'r8_C68wbNGdJAMAZzRNm2uH1czFIaTOBAc2kdwOk'
 
 def translate_text(text, target_language='en'):
     url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' + target_language + '&dt=t&q=' + text
@@ -22,24 +13,14 @@ def translate_text(text, target_language='en'):
 
 
 
-def generate_photo(description):
-    model = get_kandinsky2(
-        'cuda',
-        task_type='text2img',
-        cache_dir='/tmp/kandinsky2',
-        model_version='2.1',
-        use_flash_attention=False
+def generate_photo(start_prompt):
+    output = replicate.run(
+        "ai-forever/kandinsky-2:601eea49d49003e6ea75a11527209c4f510a93e2112c969d548fbb45b9c4f19f",
+        input={"prompt": translate_text(start_prompt) + ", 4k photo"}
     )
-    images = model.generate_text2img(
-        description + ", 4k photo",
-        num_steps=100,
-        batch_size=1,
-        guidance_scale=4,
-        h=768,
-        w=768,
-        sampler='p_sampler',
-        prior_cf_scale=4,
-        prior_steps="20"
-    )
-    return images[0]
+    image_url = output[0]
+
+    #file_name = "output/gen_image.jpg"
+    #urllib.request.urlretrieve(image_url, file_name)
+    return image_url
 
