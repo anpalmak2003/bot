@@ -6,13 +6,11 @@ import config
 import eggs_classifiaction
 import os
 import music_composer
-import midi2audio
-import fluidsynth
 
 import photo_generation
 
-bot = telebot.TeleBot(config.token)
-cur_state='communication'  # music eggs communication photo_gen photo_des
+bot = telebot.TeleBot(config.token_bot)
+cur_state = 'communication'  # music eggs communication photo_gen photo_des
 
 
 def save_image(file_info, image_name=None):
@@ -32,14 +30,14 @@ def save_image(file_info, image_name=None):
 @bot.message_handler(content_types=['photo'])
 def send_photo(message):
     global bot_state, content_image_path
+    if cur_state=='eggs':
+        file_info = bot.get_file(message.photo[-1].file_id)
+        image_path = save_image(file_info, 'eggs')
 
-    file_info = bot.get_file(message.photo[-1].file_id)
-    image_path = save_image(file_info, 'eggs')
-
-    sout = eggs_classifiaction.process_img(image_path)
-    bot.send_message(message.chat.id,
-                     text=sout.format(
-                         message.from_user))
+        sout = eggs_classifiaction.process_img(image_path)
+        bot.send_message(message.chat.id,
+                         text=sout.format(
+                             message.from_user))
 
 
 @bot.message_handler(commands=['start'])  # создаем команду
@@ -109,18 +107,13 @@ def message_reply(message):
         cur_state == 'communication'
 
     elif (cur_state == 'photo_gen'):
-        photo_name=message.text
-        img=photo_generation.generate_photo(photo_name)
+        photo_name = message.text
+        img = photo_generation.generate_photo(photo_name)
         markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-     #   f = open('out.jpg', 'wb')
-    #    f.write(urllib.request.urlopen(url).read())
-    #f.close()
+        bot.send_message(message.chat.id, 'Подождите немного пока нарисую картинку...', reply_markup=markup)
+
         bot.send_photo(message.chat.id, urllib.request.urlopen(img).read(), reply_markup=markup)
-        #os.remove(img)
         cur_state == 'communication'
-
-
-
 
 
 bot.infinity_polling()

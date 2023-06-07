@@ -8,136 +8,108 @@ from music_model.midi_processing import RANGES_SUM, get_type, NOTE_ON, NOTE_OFF
 from music_model.midi_processing import PIANO_RANGE
 
 
-def generate(model, primer, target_seq_length=1024, temperature=1.0, topk=40, topp=0.99, topp_temperature=1.0, at_least_k=1, use_rp=False, rp_penalty=0.05, rp_restore_speed=0.7, seed=None, **forward_args):
+def generate(model, primer, target_seq_length=1024, temperature=1.0, topk=40, topp=0.99, topp_temperature=1.0,
+             at_least_k=1, use_rp=False, rp_penalty=0.05, rp_restore_speed=0.7, seed=None, **forward_args):
     """
-    Generate batch of samples, conditioned on `primer`. There are used several techniques for acquiring better generated samples such as:
-    - temperature skewing for controlling entropy of distribuitions
-    - top-k sampling
-    - top-p (nucleus) sampling (https://arxiv.org/abs/1904.09751)
-    - DynamicRepetitionPenaltyProcessor that prevents notes repeating
-    values by default usualy are suitable for our models
-        
-    Parameters
-    ----------
-    model : MusicTransformer
-        trained model.
-    primer : torch.Tensor (B x N)
-        primer for condition on.
-        B = batch_size, N = seq_lenght.
-        We are using the primer consisted of one token - genre. These tokens are {390:'classic', 391:'jazz', 392:'calm', 393:'pop'}.
-    target_seq_length : int
-        desired length  of generated sequences.
-    temperature : float
-        temperature alters the output distribuition of the model. Higher values ( > 1.0) lead to more stohastic sampling, lower values lead to more expected and predictable sequences (ending up with endlessly repeating musical patterns).
-    topk : int
-        restricts sampling from lower probabilities. It is the length of set of tokens from which sampling will be.
-    topp : float
-        restricts sampling from lower probabilities, but more adaptive then topk. see (https://arxiv.org/abs/1904.09751).
-    topp_temperature : float
-        temperature for counting cumulative sum doing topp sampling.
-    at_least_k : int
-        like topk, but force to sample from at least k tokens of higher probabilities.
-    use_rp : bool
-        use or not the DynamicRepetitionPenaltyProcessor (RP). Trying to prevent the generation of repeated notes.
-    rp_penalty : float
-        coef for RP. Higher values lead to more RP impact.
-    rp_restore_speed : float
-        how fast the penalty will be lifted. Lower values lead to more RP impact.
-    seed : int
-        fixes seed for deterministic generation.
-    forward_args : dict
-        args for model's forward.
-        
-    Returns
-    -------
-    generated : torch.Tensor (B x target_seq_length)
-        generated batch of sequences.
+
+    :param model: модель, которую мы используем для генерации мелодий(обучена заранее)
+    :param primer: torch.Tensor (B x N) B-кол-во мелодий, N-длина последовательности, словарь,
+    в качестве последних 5 значений включает в себя жанры
+    :param target_seq_length: Длина мелодии
+    :param temperature: Температура, значения > 1.0 приводят к более стохастической выборке,
+    более низкие значения приводят к более ожидаемым и предсказуемым последовательностям
+    (в конечном итоге к бесконечно повторяющимся музыкальным паттернам).
+    :param topk: Длина набора токенов, из которых будет производиться выборка(более высокие вероятности)
+    :param topp: Длина набора токенов, из которых будет производиться выборка(более низкие вероятности)
+    :param topp_temperature: Температура для выборки topp
+    :param at_least_k: как topk, но заставляют выбирать из >= k токенов с более высокой вероятностью
+    :param use_rp: Попытка предотвратить генерацию повторяющихся нот
+    :param rp_penalty: Более высокие значения приводят к большему влиянию rp
+    :param rp_restore_speed: Как быстро будет снято "наказание" за повторение.
+    Более низкие значения приводят к большему влиянию rp
+    :param seed:  Исправляет начальное значение для детерминированной генерации.
+    :param forward_args: dict, для передачи параметров
+    :return: torch.Tensor (B x target_seq_length) сгенерированная последовательность
     """
+
     device = model.device
     if seed is not None:
         torch.manual_seed(seed)
         np.random.seed(seed)
-    
-    if at_least_k < 1:
-        at_least_k = 1
-    B,N = primer.shape
-    B=1
-    generated = torch.full((B,target_seq_length), constants.TOKEN_PAD, dtype=torch.int64, device=device)
+
+    B, N = primer.shape
+    B = 1  # нам нужна только 1 мелодия
+    generated = torch.full((B, target_seq_length), constants.TOKEN_PAD, dtype=torch.int64, device=device)
     generated[..., :N] = primer.to(device)
-    
+
     if use_rp:
-        RP_processor = DynamicRepetitionPenaltyProcessor(B, penalty=rp_penalty, restore_speed=rp_restore_speed, device=device)
+        RP_processor = DynamicRepetitionPenaltyProcessor(B, penalty=rp_penalty, restore_speed=rp_restore_speed,
+                                                         device=device)
     whitelist_mask = make_whitelist_mask()
-    
+
     model.eval()
     with torch.no_grad():
         for i in tqdm(range(N, target_seq_length)):
-            logits = model(generated[:, :i], **forward_args)[:, i-1, :]
-            logits[:,~whitelist_mask] = float('-inf')
-            p = torch.softmax(logits/topp_temperature, -1)
-            
-            # apply topk:
+            logits = model(generated[:, :i], **forward_args)[:, i - 1, :] # получаем предсказания модели
+            logits[:, ~whitelist_mask] = float('-inf')
+            p = torch.softmax(logits / topp_temperature, -1)
+
+            # используем topk
             if topk == 0:
                 topk = p.shape[-1]
             p_topk, idxs = torch.topk(p, topk, -1, sorted=True)
-            
-            # apply topp:
+
+            # используем topp
             mask = p_topk.cumsum(-1) < topp
-            mask[:,:at_least_k] = True
+            mask[:, :at_least_k] = True
             logits_masked = logits.gather(-1, idxs)
             logits_masked[~mask] = float('-inf')
-            p_topp = torch.softmax(logits_masked/temperature, -1)
-            
-            # apply penalty:
+            p_topp = torch.softmax(logits_masked / temperature, -1)
+
+            # используем use_rp
             if use_rp:
                 p_penalized = RP_processor.apply_penalty(p_topp, idxs)
                 ib = p_penalized.sum(-1) == 0
                 if ib.sum() > 0:
-                    # if all topp tokens get zeroes due RP_processor, then fallback to topk-sampling
+                    # если все токены topp получают нули из-за rp, то возвращаемся к выборке topk
                     p_fallback = p_topk[ib].clone()
                     p_fallback[mask[ib]] = 0.  # zeroing topp
                     p_penalized[ib] = p_fallback
-                    
+
                 ib = p_penalized.sum(-1) == 0
                 if ib.sum() > 0:
-                    # if topk tokens get zeroes, fallback to topp without RP
+                    # если токены topk получают нули, то возвращаемся к topp без RP
                     print('fallback-2')
                     p_penalized = p_topp
                 p_topp = p_penalized
-                    
-            # sample:
+
+            # берем образец:
             next_token = idxs.gather(-1, torch.multinomial(p_topp, 1))
             generated[:, i] = next_token.squeeze(-1)
-            
-            # update penalty:
+
+            # обновляем penalty:
             if use_rp:
                 RP_processor.update(next_token)
 
-    return generated[:, :i+1]
+    return generated[:, :i + 1]
 
 
 def post_process(generated, remove_bad_generations=True):
     """
-    Post-process does 3 routines:
-        1) removes long pauses (3+ seconds)
-        2) clips velocities to range(30,100) to avoid dramaticly loud notes, which are not suitable for our case.
-        3) removes bad generated samples. The model sometimes may generate music that consists only of many repeating notes. We try to detect them and remove from batch.
-        
-    Parameters
-    ----------
-    generated : torch.Tensor (B x N)
-        batch of generated samples
-        
-    Returns
-    -------
-    filtered_generated : cleaner and slightly better sounding generated batch
+    Функция убирает длинные паузы(более 3 секунд), обрезает скорость, чтобы избежать резко громких нот,
+    удаляет плохо сгенерированные образцы(состоящие из повторения одних и тех же нот)
+
+    :param generated: torch.Tensor (B x target_seq_length) сгенерированная последовательность
+    :param remove_bad_generations:
+    :return: filtered_generated: более чистый и немного лучше звучащий сгенерированная последовательность
     """
+
     generated = generated.cpu().numpy()
     remove_pauses(generated, 3)
     clip_velocity(generated)
-    
+
     bad_filter = np.ones(len(generated), dtype=bool)
-    
+
     if remove_bad_generations:
         for i, gen in enumerate(generated):
             midi = midi_processing.decode(gen)
@@ -146,41 +118,41 @@ def post_process(generated, remove_bad_generations=True):
 
         if np.sum(bad_filter) != len(bad_filter):
             print(f'{np.sum(~bad_filter)} bad samples will be removed.')
-        
+
     return generated[bad_filter]
-    
+
 
 def make_whitelist_mask():
-    """Generate mask for PIANO_RANGE"""
+    """Создать маску для PIANO_RANGE"""
     whitelist_mask = np.zeros(constants.VOCAB_SIZE, dtype=bool)
-    whitelist_mask[PIANO_RANGE[0]:PIANO_RANGE[1]+1] = True
-    whitelist_mask[128+PIANO_RANGE[0]:128+PIANO_RANGE[1]+1] = True
-    whitelist_mask[128*2:] = True
+    whitelist_mask[PIANO_RANGE[0]:PIANO_RANGE[1] + 1] = True
+    whitelist_mask[128 + PIANO_RANGE[0]:128 + PIANO_RANGE[1] + 1] = True
+    whitelist_mask[128 * 2:] = True
     return whitelist_mask
 
-    
+
 class DynamicRepetitionPenaltyProcessor:
+
     """
-    The class is trying to prevent cases where the model generates repetitive notes or musical patterns that degrade quality.
-    It dynamically reduces and restores the probabilities of generatied notes.
-    Each generated note will reduce its probability for the next step by `penalty` value (which is hyperparameter). If this note has been generated again, then we continue to reduce its probability, else we will gradually restore its probability (speed is controlled by restore_speed parameter).
-    
-    Parameters
-    ----------
+   Класс пытается предотвратить случаи, когда модель генерирует повторяющиеся
+   ноты или музыкальные паттерны, ухудшающие качество. Каждая сгенерированная заметка
+   будет уменьшать вероятность следующего шага на значение «штрафа» (которое является гиперпараметром)
+
+
     bs : int
-        batch_size. We need to know batch_size in advance to create the penalty_matrix.
+        количество мелодий(batch_size)
     penalty : float
-        value by which the probability will be reduced.
+        значение, на которое вероятность будет уменьшена
     restore_speed : float
-        the number inversed to the number of seconds needs to fully restore probability from 0 to 1.
-        for restore_speed equal to 1.0 we need 1.0 sec to restore, for 2.0 - 0.5 sec and so on.
+        число, обратное количеству секунд, необходимо для полного восстановления вероятности от 0 до 1.
     """
-    def __init__(self, bs, device, penalty=0.3, restore_speed=1.0) :
+
+    def __init__(self, bs, device, penalty=0.3, restore_speed=1.0):
         self.bs = bs
         self.penalty = penalty
         self.restore_speed = restore_speed
-        self.penalty_matrix = torch.ones(bs,128).to(device)
-        
+        self.penalty_matrix = torch.ones(bs, 128).to(device)
+
     def apply_penalty(self, p, idxs):
         p = p.clone()
         for b in range(len(p)):
@@ -188,115 +160,113 @@ class DynamicRepetitionPenaltyProcessor:
             pi = p[b]
             mask = i < 128
             if len(i) > 0:
-                pi[mask] = pi[mask]*self.penalty_matrix[b,i[mask]]
+                pi[mask] = pi[mask] * self.penalty_matrix[b, i[mask]]
         return p
-        
+
     def update(self, next_token):
-        restoring = next_token - (128+128+32)  # only TS do restore
-        restoring = torch.clamp(restoring.float(), 0, 100)/100*self.restore_speed
+        restoring = next_token - (128 + 128 + 32)
+        restoring = torch.clamp(restoring.float(), 0, 100) / 100 * self.restore_speed
         self.penalty_matrix += restoring
-        nt = next_token.squeeze(-1)
         nt = next_token[next_token < 128]
         self.penalty_matrix[:, nt] -= restoring + self.penalty
         torch.clamp(self.penalty_matrix, 0, 1.0, out=self.penalty_matrix)
         return restoring, nt
-    
+
 
 def detect_note_repetition(midi, threshold_sec=0.01):
     """
-    Returns the fraction of note repetitions. Counts cases where prev_note_end == next_note_start at the same pitch ('glued' notes). Used in detection bad generated samples.
-    
-    Parameters
+    Возвращает долю повторений ноты.
+    Подсчитывает случаи, когда prev_note_end == next_note_start с одинаковой высотой звука
+     («склеенные» ноты). Используется для обнаружения плохо сгенерированных образцов.
+
     ----------
     midi : prettyMIDI object
     threshold_sec : float
-        intervals smaller then threshold_sec are treated as 'glued' notes.
-    
+        интервалы, меньшие порога threshold_sec, рассматриваются как «склеенные» ноты.
+
     Returns
     -------
-    fraction of notes repetitions relative to the number of all notes.
+    доля повторений нот по отношению к количеству всех нот.
     """
     all_notes = [x for inst in midi.instruments for x in inst.notes if not inst.is_drum]
     if len(all_notes) == 0:
         return 0
-    all_notes_np = np.array([[x.start,x.end,x.pitch,x.velocity] for x in all_notes])
-    
-    i_sort = np.lexsort([all_notes_np[:,0], all_notes_np[:,2]])
+    all_notes_np = np.array([[x.start, x.end, x.pitch, x.velocity] for x in all_notes])
+
+    i_sort = np.lexsort([all_notes_np[:, 0], all_notes_np[:, 2]])
 
     s = []
     cur_p = -1
     cur_t = -1
     for t in all_notes_np[i_sort]:
-        a,b,p,v = t
+        a, b, p, v = t
         if cur_p != p:
             cur_p = p
         else:
-            s.append(a-cur_t)
+            s.append(a - cur_t)
         cur_t = b
     s = np.array(s)
-    return (s < threshold_sec).sum()/len(s)
+    return (s < threshold_sec).sum() / len(s)
 
 
 def remove_pauses(generated, threshold=3):
     """
-    Fills  pauses by constants.TOKEN_PAD values. Only pauses that longer than `threshold` seconds are considered.
-    Inplace operation. `generated` is a tensor (batch of sequences).
-    
+   Заполняет паузы значениями const.
+
     Parameters
     ----------
     generated : torch.Tensor (B x N)
-        generated batch of sequences.
+        сгенерированная мелодия
     threshold : int/float
-        the minimum seconds of silence to treat them as a pause.
+        минимальные секунды тишины, чтобы рассматривать их как паузу.
     """
-    mask = (generated>=RANGES_SUM[2]) & (generated<RANGES_SUM[3])
-    seconds = ((generated-RANGES_SUM[2])+1)*0.01
+    mask = (generated >= RANGES_SUM[2]) & (generated < RANGES_SUM[3])
+    seconds = ((generated - RANGES_SUM[2]) + 1) * 0.01
     seconds[~mask] = 0
 
     res_ab = [[] for _ in range(seconds.shape[0])]
 
-    for ib,i_seconds in enumerate(seconds):
-        a,s = 0,0
+    for ib, i_seconds in enumerate(seconds):
+        a, s = 0, 0
         notes_down = np.zeros(128, dtype=bool)
-        for i,(t,ev) in enumerate(zip(i_seconds,generated[ib])):
+        for i, (t, ev) in enumerate(zip(i_seconds, generated[ib])):
             typ = get_type(ev)
             if typ == NOTE_ON:
                 pitch = ev
                 notes_down[pitch] = True
             if typ == NOTE_OFF:
-                pitch = ev-128
+                pitch = ev - 128
                 notes_down[pitch] = False
-                    
+
             if t == 0:
                 if s >= threshold and notes_down.sum() == 0:
-                    res_ab[ib].append([a,i,s])
+                    res_ab[ib].append([a, i, s])
                 s = 0
-                a = i+1
+                a = i + 1
             s += t
         if s >= threshold and notes_down.sum() == 0:
-            res_ab[ib].append([a,len(i_seconds),s])
-    
-    # remove inplace
-    for ib,t in enumerate(res_ab):
-        for a,b,s in t:
-            generated[ib, a:b] = constants.TOKEN_PAD
-            print(f'pause removed:',ib,f'n={b-a}',a,b,s)
+            res_ab[ib].append([a, len(i_seconds), s])
 
-        
+    # удаление inplace
+    for ib, t in enumerate(res_ab):
+        for a, b, s in t:
+            generated[ib, a:b] = constants.TOKEN_PAD
+            print(f'pause removed:', ib, f'n={b - a}', a, b, s)
+
+
 def clip_velocity(generated, min_velocity=30, max_velocity=100):
     """
-    Clip velocity to range(min_velocity, max_velocity). Since the model sometimes generate overloud sequences, we try to neutralize this effect.
-    Inplace operation. `generated` is a tensor (batch of sequences).
-    
+    Обрезать скорость до диапазона (min_velocity, max_velocity).
+     Поскольку модель иногда генерирует слишком громкие последовательности, мы пытаемся нейтрализовать этот эффект.
     Parameters
     ----------
     generated : torch.Tensor (B x N)
-        generated batch of sequences.
+        сгенерированная мелодия
     min_velocity : int
     max_velocity : int
     """
-    max_velocity_encoded = max_velocity*32//128 + RANGES_SUM[1]
-    min_velocity_encoded = min_velocity*32//128 + RANGES_SUM[1]
-    
-    mask = (generated>=RANGES_SUM[1]) & (generated<RANGES_SUM[2])
+    max_velocity_encoded = max_velocity * 32 // 128 + RANGES_SUM[1]
+    min_velocity_encoded = min_velocity * 32 // 128 + RANGES_SUM[1]
+
+    mask = (generated >= RANGES_SUM[1]) & (generated < RANGES_SUM[2])
     generated[mask] = np.clip(generated[mask], min_velocity_encoded, max_velocity_encoded)

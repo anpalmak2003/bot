@@ -14,16 +14,6 @@ from torch.nn.functional import linear, softmax, dropout
 
 # TransformerEncoderRPR
 class TransformerEncoderRPR(Module):
-    """
-    ----------
-    Author: Pytorch
-    ----------
-    For Relative Position Representation support (https://arxiv.org/abs/1803.02155)
-    https://pytorch.org/docs/1.2.0/_modules/torch/nn/modules/transformer.html#TransformerEncoder
-
-    No modification. Copied here to ensure continued compatibility with other edits.
-    ----------
-    """
 
     def __init__(self, encoder_layer, num_layers, norm=None):
         super(TransformerEncoderRPR, self).__init__()
@@ -46,17 +36,6 @@ class TransformerEncoderRPR(Module):
 
 # TransformerEncoderLayerRPR
 class TransformerEncoderLayerRPR(Module):
-    """
-    ----------
-    Author: Pytorch
-    Modified: Damon Gwinn
-    ----------
-    For Relative Position Representation support (https://arxiv.org/abs/1803.02155)
-    https://pytorch.org/docs/1.2.0/_modules/torch/nn/modules/transformer.html#TransformerEncoderLayer
-
-    Modification to create and call custom MultiheadAttentionRPR
-    ----------
-    """
 
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, er_len=None, reduce_qk=False, device='cuda:0'):
         super(TransformerEncoderLayerRPR, self).__init__()
@@ -83,17 +62,6 @@ class TransformerEncoderLayerRPR(Module):
 
 # MultiheadAttentionRPR
 class MultiheadAttentionRPR(Module):
-    """
-    ----------
-    Author: Pytorch
-    Modified: Damon Gwinn
-    ----------
-    For Relative Position Representation support (https://arxiv.org/abs/1803.02155)
-    https://pytorch.org/docs/1.2.0/_modules/torch/nn/modules/activation.html#MultiheadAttention
-
-    Modification to add RPR embedding Er and call custom multi_head_attention_forward_rpr
-    ----------
-    """
 
     def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False, kdim=None, vdim=None, er_len=None, reduce_qk=False, device='cuda:0'):
         # TODO: implement reduce_qk in int format
@@ -226,17 +194,7 @@ def multi_head_attention_forward_rpr(query,                       # type: Tensor
                                  reduce_qk=False,
                                  skew_mask=None
                                  ):
-    """
-    ----------
-    Author: Pytorch
-    Modified: Damon Gwinn
-    ----------
-    For Relative Position Representation support (https://arxiv.org/abs/1803.02155)
-    https://pytorch.org/docs/1.2.0/_modules/torch/nn/functional.html
 
-    Modification to take RPR embedding matrix and perform skew optimized RPR (https://arxiv.org/abs/1809.04281)
-    ----------
-    """
 
     # type: (...) -> Tuple[Tensor, Optional[Tensor]]
 

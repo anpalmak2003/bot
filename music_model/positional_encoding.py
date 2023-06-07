@@ -2,8 +2,11 @@ import torch
 import torch.nn as nn
 import math
 
-# PositionalEncoding
-# Taken from https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+''' вводит некоторую информацию об относительном
+или абсолютном положении токенов в последовательности.
+Позиционные кодировки имеют ту же размерность, что и вложения, поэтому их можно суммировать.
+Здесь мы используем функции синуса и косинуса разных частот.
+Taken from https://pytorch.org/tutorials/beginner/transformer_tutorial.html'''
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model, dropout=0.1, max_len=5000):

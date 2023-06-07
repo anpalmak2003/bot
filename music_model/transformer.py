@@ -10,21 +10,6 @@ from .rpr import TransformerEncoderRPR, TransformerEncoderLayerRPR
 
 # MusicTransformer
 class MusicTransformer(nn.Module):
-    """
-    ----------
-    Author: Damon Gwinn
-    ----------
-    Music Transformer reproduction from https://arxiv.org/abs/1809.04281. Arguments allow for
-    tweaking the transformer architecture (https://arxiv.org/abs/1706.03762) and the rpr argument
-    toggles Relative Position Representations (RPR - https://arxiv.org/abs/1803.02155).
-
-    Supports training and generation using Pytorch's nn.Transformer class with dummy decoder to
-    make a decoder-only transformer architecture
-
-    For RPR support, there is modified Pytorch 1.2.0 code in rpr.py. Modified source will be
-    kept up to date with Pytorch revisions only as necessary.
-    ----------
-    """
 
     def __init__(self, device, n_layers=6, num_heads=8, d_model=512, dim_feedforward=1024, dropout=0.1,
                  max_sequence=2048, rpr=False, vocab_size=VOCAB_SIZE, cond_vocab_size=None, reduce_qk=False):
@@ -81,15 +66,6 @@ class MusicTransformer(nn.Module):
 
     # forward
     def forward(self, x, condition=None, mask=True):
-        """
-        ----------
-        Author: Damon Gwinn
-        ----------
-        Takes an input sequence and outputs predictions using a sequence to sequence method.
-
-        A prediction at one index is the "next" prediction given all information seen previously.
-        ----------
-        """
         if (mask is True):
             mask = self.mask[..., :x.shape[1], :x.shape[1]]
         else:
@@ -140,14 +116,6 @@ class MusicTransformer(nn.Module):
 # Used as a dummy to nn.Transformer
 # DummyDecoder
 class DummyDecoder(nn.Module):
-    """
-    ----------
-    Author: Damon Gwinn
-    ----------
-    A dummy decoder that returns its input. Used to make the Pytorch transformer into a decoder-only
-    architecture (stacked encoders with dummy decoder fits the bill)
-    ----------
-    """
 
     def __init__(self):
         super(DummyDecoder, self).__init__()
