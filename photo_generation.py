@@ -3,7 +3,7 @@ import requests
 import urllib.request
 import replicate
 import config
-os.environ['REPLICATE_API_TOKEN'] = config.token_bot
+os.environ['REPLICATE_API_TOKEN'] = config.token_photo_gen
 
 #переводим тест
 def translate_text(text, target_language='en'):

@@ -105,7 +105,7 @@ def post_process(generated, remove_bad_generations=True):
     """
 
     generated = generated.cpu().numpy()
-    remove_pauses(generated, 3)
+    remove_pauses(generated, 1)
     clip_velocity(generated)
 
     bad_filter = np.ones(len(generated), dtype=bool)
