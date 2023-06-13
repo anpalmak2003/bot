@@ -7,14 +7,26 @@ import eggs_classifiaction
 import os
 import music_composer
 import photo_describer
-
 import photo_generation
+from gpt import Gpt
+
 
 bot = telebot.TeleBot(config.token_bot)
 cur_state = 'communication'  # music eggs communication photo_gen photo_des
 img_pth_to_describe =''
 start_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+btn1 = types.KeyboardButton("Оценить качество приготовления яиц")
+btn2 = types.KeyboardButton("Сгенерировать мелодию")
+btn3 = types.KeyboardButton("Сгенерировать картинку")
+  #  btn4 = types.KeyboardButton("Пообщаться")
+btn5 = types.KeyboardButton("Задать вопрос по картинке")
+start_markup.add(btn1, btn2, btn3, btn5)
+
+replayer=Gpt()
+
+
 
 def save_image(file_info, image_name=None):
     downloaded_file = bot.download_file(file_info.file_path)
@@ -52,14 +64,9 @@ def send_photo(message):
 
 @bot.message_handler(commands=['start'])  # создаем команду
 def start(message):
-    btn1 = types.KeyboardButton("Оценить качество приготовления яиц")
-    btn2 = types.KeyboardButton("Сгенерировать мелодию")
-    btn3 = types.KeyboardButton("Сгенерировать картинку")
-    btn4 = types.KeyboardButton("Пообщаться")
-    btn5 = types.KeyboardButton("Задать вопрос по картинке")
-    start_markup.add(btn1, btn2, btn3, btn4, btn5)
+
     bot.send_message(message.chat.id,
-                     text="Привет, {0.first_name}! Выбери, что ты хочешь...".format(
+                     text="Привет, {0.first_name}! Выбери, что ты хочешь или напиши мне...".format(
                          message.from_user), reply_markup=start_markup)
 
 
@@ -134,6 +141,11 @@ def message_reply(message):
 
         bot.send_message(message.chat.id, ans, reply_markup=start_markup)
         cur_state == 'communication'
+    elif (cur_state=='communication'):
+        messg=message.text
+        rep=replayer.generate(messg)
+        bot.send_message(message.chat.id, rep, reply_markup=start_markup)
+
 
 
 bot.infinity_polling()
