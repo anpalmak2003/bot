@@ -87,7 +87,6 @@ def send_photo(message):
         img_pth_to_describe = save_image(file_info, 'describe')
         bot.send_message(message.chat.id,
                          text='Задайте вопрос по картинке')
-        cur_state = 'communication'
 
 
 def gen_replayer(inp):
