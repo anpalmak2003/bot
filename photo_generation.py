@@ -3,9 +3,11 @@ import requests
 import urllib.request
 import replicate
 import config
+
 os.environ['REPLICATE_API_TOKEN'] = config.token_photo_gen
 
-#переводим тест
+
+# переводим тест
 def translate_text(text, target_language='en'):
     url = config.api_link_photo_gen + target_language + '&dt=t&q=' + text
     response = requests.get(url)
@@ -21,4 +23,3 @@ def generate_photo(start_prompt):
     )
     image_url = output[0]
     return image_url
-

@@ -5,9 +5,23 @@ import cv2
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
+
 global model
 
 is_model_init = False
+global model
+
+
+def init():
+    global model
+    if torch.cuda.is_available():
+        map_location = 'cuda'
+    else:
+        map_location = 'cpu'
+
+    model = timm.create_model('resnet18d', pretrained=True)
+    model.fc = nn.Linear(512, 4)
+    model.load_state_dict(torch.load(os.path.join('models/eggs.pth'), map_location=map_location))
 
 
 test_transforms = A.Compose(
@@ -20,25 +34,19 @@ test_transforms = A.Compose(
 
 
 def process_tensor(str_tensor):
-    num_class=str_tensor[-3]
-    if num_class=='0':
+    num_class = str_tensor[-3]
+    if num_class == '0':
         return 'Яйца недожаренные('
-    if num_class=='1':
+    if num_class == '1':
         return 'Яйца разбитые('
-    if num_class=='2':
+    if num_class == '2':
         return 'Ваши яйца идеальные!'
-    if num_class=='3':
+    if num_class == '3':
         return 'Яйца пережаренные('
 
-def process_img(path):
-    if torch.cuda.is_available():
-        map_location = 'cuda'
-    else:
-        map_location = 'cpu'
 
-    model = timm.create_model('resnet18d', pretrained=True)
-    model.fc = nn.Linear(512, 4)
-    model.load_state_dict(torch.load(os.path.join('models/eggs.pth'), map_location=map_location))
+def process_img(path):
+    global model
 
     test_image = cv2.imread(path)
     model.zero_grad()
@@ -48,4 +56,3 @@ def process_img(path):
     prediction = model(test_image)
     os.remove(path)
     return process_tensor(str(torch.argmax(prediction, dim=-1)))
-

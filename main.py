@@ -8,24 +8,52 @@ import os
 import music_composer
 import photo_describer
 import photo_generation
+import torch
 from gpt import Gpt
 
-
 bot = telebot.TeleBot(config.token_bot)
-cur_state = 'communication'  # music eggs communication photo_gen photo_des
-img_pth_to_describe =''
+
+img_pth_to_describe = ''
 start_markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
 
 btn1 = types.KeyboardButton("Оценить качество приготовления яиц")
 btn2 = types.KeyboardButton("Сгенерировать мелодию")
 btn3 = types.KeyboardButton("Сгенерировать картинку")
-  #  btn4 = types.KeyboardButton("Пообщаться")
 btn5 = types.KeyboardButton("Задать вопрос по картинке")
 start_markup.add(btn1, btn2, btn3, btn5)
 
-replayer=Gpt()
+global replayer
+global input_ids
+global cur_state
 
+
+def model_init():
+    global replayer, input_ids, cur_state
+    # языковая модель
+    replayer = Gpt()
+    input_ids = torch.tensor([[50258, 50260]])
+
+    # музыкальная модель
+    music_composer.init()
+
+    # модель описания фото
+    photo_describer.init()
+
+    # модель яиц
+    eggs_classifiaction.init()
+
+    cur_state = 'communication'  # music eggs communication photo_gen photo_des
+
+
+@bot.message_handler(commands=['start'])  # создаем команду
+def start(message):
+    model_init()
+    bot.send_message(message.chat.id,
+                     text="Сейчас я загружусь...")
+    bot.send_message(message.chat.id,
+                     text="Привет, {0.first_name}! Выбери, что ты хочешь или напиши мне...".format(
+                         message.from_user), reply_markup=start_markup)
 
 
 def save_image(file_info, image_name=None):
@@ -44,7 +72,7 @@ def save_image(file_info, image_name=None):
 
 @bot.message_handler(content_types=['photo'])
 def send_photo(message):
-    global bot_state, content_image_path,img_pth_to_describe
+    global bot_state, content_image_path, img_pth_to_describe, cur_state
     if cur_state == 'eggs':
         file_info = bot.get_file(message.photo[-1].file_id)
         image_path = save_image(file_info, 'eggs')
@@ -53,26 +81,39 @@ def send_photo(message):
         bot.send_message(message.chat.id,
                          text=sout.format(
                              message.from_user), reply_markup=start_markup)
+        cur_state='communication'
     if cur_state == 'photo_des':
         file_info = bot.get_file(message.photo[-1].file_id)
         img_pth_to_describe = save_image(file_info, 'describe')
         bot.send_message(message.chat.id,
                          text='Задайте вопрос по картинке')
+        cur_state = 'communication'
 
 
+def gen_replayer(inp):
+    global input_ids, replayer
+    prompt = torch.tensor(replayer.tokenizer.encode(inp)).unsqueeze(0).long()
+    input_ids = torch.cat([input_ids, prompt, torch.tensor([[50261]])], dim=1)
+    input_ids, bot_text = replayer.generate(input_ids, 50259)
+    if 'Человек:' in bot_text:
+        bot_text = ''.join(bot_text.split('Человек:')[0])
+    if 'человек:' in bot_text:
+        bot_text = ''.join(bot_text.split('человек:')[0])
+    if 'человека' in bot_text:
+        bot_text = ''.join(bot_text.split('человека')[0])
 
-
-@bot.message_handler(commands=['start'])  # создаем команду
-def start(message):
-
-    bot.send_message(message.chat.id,
-                     text="Привет, {0.first_name}! Выбери, что ты хочешь или напиши мне...".format(
-                         message.from_user), reply_markup=start_markup)
+    if 'Помощник:' in bot_text:
+        text = bot_text.split('Помощник:')
+        bot_text = text[0]
+    elif 'помощник:' in bot_text:
+        text = bot_text.split('помощник:')
+        bot_text = text[0]
+    return bot_text
 
 
 @bot.message_handler(content_types='text')
 def message_reply(message):
-    global cur_state, markup
+    global cur_state, markup, input_ids
 
     if message.text == "Оценить качество приготовления яиц":
         cur_state = 'eggs'
@@ -121,31 +162,33 @@ def message_reply(message):
 
         bot.send_message(message.chat.id, 'Подождите немного пока я сочиню мелодию...', reply_markup=markup)
         music_path = music_composer.generate_music(num_genre)
-        bot.send_audio(message.chat.id, audio=open(music_path, 'rb'),reply_markup=start_markup)
+        bot.send_audio(message.chat.id, audio=open(music_path, 'rb'), reply_markup=start_markup)
         os.remove(music_path)
         os.remove(music_path.replace('wav', 'mid'))
-        cur_state == 'communication'
+        cur_state = 'communication'
 
-    elif (cur_state == 'photo_gen'):
+    elif cur_state == 'photo_gen':
         photo_name = message.text
         img = photo_generation.generate_photo(photo_name)
         bot.send_message(message.chat.id, 'Подождите немного пока нарисую картинку...', reply_markup=markup)
 
         bot.send_photo(message.chat.id, urllib.request.urlopen(img).read(), reply_markup=start_markup)
-        cur_state == 'communication'
+        cur_state = 'communication'
 
-    elif (cur_state=='photo_des'):
-        question=message.text
+    elif cur_state == 'photo_des':
+        question = message.text
         bot.send_message(message.chat.id, 'Сейчас подумаю...', reply_markup=markup)
-        ans=photo_describer.process(img_pth_to_describe,question)
+        ans = photo_describer.process(img_pth_to_describe, question)
 
         bot.send_message(message.chat.id, ans, reply_markup=start_markup)
-        cur_state == 'communication'
-    elif (cur_state=='communication'):
-        messg=message.text
-        rep=replayer.generate(messg)
-        bot.send_message(message.chat.id, rep, reply_markup=start_markup)
-
+        cur_state = 'communication'
+    elif cur_state == 'communication':
+        inp = message.text
+        ans = gen_replayer(inp)
+        if ans == '':
+            input_ids = torch.tensor([[50258, 50260]])
+            ans = gen_replayer(inp)
+        bot.send_message(message.chat.id, ans, reply_markup=start_markup)
 
 
 bot.infinity_polling()

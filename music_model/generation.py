@@ -96,7 +96,7 @@ def generate(model, primer, target_seq_length=1024, temperature=1.0, topk=40, to
 
 def post_process(generated, remove_bad_generations=True):
     """
-    Функция убирает длинные паузы(более 3 секунд), обрезает скорость, чтобы избежать резко громких нот,
+    Функция убирает длинные паузы(более 1 секунд), обрезает скорость, чтобы избежать резко громких нот,
     удаляет плохо сгенерированные образцы(состоящие из повторения одних и тех же нот)
 
     :param generated: torch.Tensor (B x target_seq_length) сгенерированная последовательность
