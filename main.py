@@ -192,7 +192,7 @@ def message_reply(message):
     elif cur_state == 'communication':
         inp = message.text
         ans = gen_replayer(inp)
-        if ans == '':
+        while ans == '':
             input_ids = torch.tensor([[50258, 50260]])
             ans = gen_replayer(inp)
         bot.send_message(message.chat.id, ans, reply_markup=start_markup)
