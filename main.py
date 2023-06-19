@@ -107,6 +107,14 @@ def gen_replayer(inp):
     elif 'помощник:' in bot_text:
         text = bot_text.split('помощник:')
         bot_text = text[0]
+    elif 'помощника:' in bot_text:
+        text = bot_text.split('помощника:')
+        bot_text = text[0]
+    elif 'Помощника:' in bot_text:
+        text = bot_text.split('Помощника:')
+        bot_text = text[0]
+    if len(bot_text)==0:
+        return 'Я не понимаю'
     return bot_text
 
 
