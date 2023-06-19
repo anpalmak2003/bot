@@ -26,10 +26,12 @@ start_markup.add(btn1, btn2, btn3, btn5)
 global replayer
 global input_ids
 global cur_state
+global cnt
 
 
 def model_init():
-    global replayer, input_ids, cur_state
+    global replayer, input_ids, cur_state, cnt
+    cnt=0
     # языковая модель
     replayer = Gpt()
     input_ids = torch.tensor([[50258, 50260]])
@@ -120,7 +122,7 @@ def gen_replayer(inp):
 
 @bot.message_handler(content_types='text')
 def message_reply(message):
-    global cur_state, markup, input_ids
+    global cur_state, markup, input_ids, cnt
 
     if message.text == "Оценить качество приготовления яиц":
         cur_state = 'eggs'
@@ -190,9 +192,11 @@ def message_reply(message):
         bot.send_message(message.chat.id, ans, reply_markup=start_markup)
         cur_state = 'communication'
     elif cur_state == 'communication':
+        cnt+=1
         inp = message.text
         ans = gen_replayer(inp)
-        while ans == '':
+        if ans == '' or cnt==6:
+            cnt=0
             input_ids = torch.tensor([[50258, 50260]])
             ans = gen_replayer(inp)
         bot.send_message(message.chat.id, ans, reply_markup=start_markup)
