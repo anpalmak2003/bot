@@ -94,24 +94,24 @@ def gen_replayer(inp):
     prompt = torch.tensor(replayer.tokenizer.encode(inp)).unsqueeze(0).long()
     input_ids = torch.cat([input_ids, prompt, torch.tensor([[50261]])], dim=1)
     input_ids, bot_text = replayer.generate(input_ids, 50259)
-    if 'Человек:' in bot_text:
-        bot_text = ''.join(bot_text.split('Человек:')[0])
-    if 'человек:' in bot_text:
-        bot_text = ''.join(bot_text.split('человек:')[0])
+    if 'Человек' in bot_text:
+        bot_text = ''.join(bot_text.split('Человек')[0])
+    if 'человек' in bot_text:
+        bot_text = ''.join(bot_text.split('человек')[0])
     if 'человека' in bot_text:
         bot_text = ''.join(bot_text.split('человека')[0])
 
-    if 'Помощник:' in bot_text:
-        text = bot_text.split('Помощник:')
+    if 'Помощник' in bot_text:
+        text = bot_text.split('Помощник')
         bot_text = text[0]
-    elif 'помощник:' in bot_text:
-        text = bot_text.split('помощник:')
+    elif 'помощник' in bot_text:
+        text = bot_text.split('помощник')
         bot_text = text[0]
-    elif 'помощника:' in bot_text:
-        text = bot_text.split('помощника:')
+    elif 'помощника' in bot_text:
+        text = bot_text.split('помощника')
         bot_text = text[0]
-    elif 'Помощника:' in bot_text:
-        text = bot_text.split('Помощника:')
+    elif 'Помощника' in bot_text:
+        text = bot_text.split('Помощника')
         bot_text = text[0]
     if len(bot_text)==0:
         return 'Я не понимаю'
